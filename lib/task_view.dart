@@ -1,22 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'task_taker.dart';
+import 'package:mybackend/models/task.dart';
 
-class Task {
-  String title;
-  String description;
-  String date;
-  String time;
 
-  Task({required this.title, required this.description, required this.date, required this.time});
 
-  factory Task.fromJson(Map<String, dynamic> json) => Task(
-    title: json['title'],
-    description: json['description'],
-    date: json['date'],
-    time: json['time'],
-  );
-}
+
+
 
 class TaskView extends StatefulWidget {
   @override
@@ -35,10 +26,45 @@ class _TaskViewState extends State<TaskView> {
   Future<void> _loadTasks() async {
     final prefs = await SharedPreferences.getInstance();
     final tasksJson = prefs.getStringList('tasks') ?? [];
-
     setState(() {
       tasks = tasksJson.map((taskStr) => Task.fromJson(jsonDecode(taskStr))).toList();
     });
+  }
+
+  Future<void> _saveTasksToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final tasksJson = tasks.map((task) => jsonEncode(task.toJson())).toList();
+    await prefs.setStringList('tasks', tasksJson);
+  }
+
+  void _openTaskTaker({Task? task, int? index}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TaskTaker(
+          task: task,
+          index: index,
+          onSave: (updatedTask) {
+            setState(() {
+              if (index != null) {
+                tasks[index] = updatedTask;
+              } else {
+                tasks.add(updatedTask);
+              }
+              _saveTasksToPrefs();
+            });
+          },
+          onDelete: index != null
+              ? () {
+            setState(() {
+              tasks.removeAt(index);
+              _saveTasksToPrefs();
+            });
+          }
+              : null,
+        ),
+      ),
+    );
   }
 
   @override
@@ -50,15 +76,23 @@ class _TaskViewState extends State<TaskView> {
         itemCount: tasks.length,
         itemBuilder: (context, index) {
           final task = tasks[index];
-          return Card(
-            margin: EdgeInsets.symmetric(vertical: 8),
-            child: ListTile(
-              title: Text(task.title),
-              subtitle: Text('${task.description}\nDate: ${task.date}  Time: ${task.time}'),
-              isThreeLine: true,
+          return GestureDetector(
+            onTap: () => _openTaskTaker(task: task, index: index),
+            child: Card(
+              margin: EdgeInsets.symmetric(vertical: 8),
+              child: ListTile(
+                title: Text(task.title),
+                subtitle: Text('${task.description}\nDate: ${task.date}  Time: ${task.time}'),
+                isThreeLine: true,
+              ),
             ),
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _openTaskTaker(),
+        child: Icon(Icons.add),
+        tooltip: 'Add Task',
       ),
     );
   }
